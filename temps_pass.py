@@ -2,6 +2,7 @@ from tkinter import *
 from tkinter import simpledialog
 from time import time
 import pickle
+import threading
 
 # Crée un dictionnaire pour stocker les chronomètres par nom
 chronometres = {}
@@ -28,15 +29,31 @@ def charger_liste(liste):
     except FileNotFoundError:
         pass
 
-def demarrer_chronometre(nom):
-    if nom in chronometres:
-        chronometres[nom]['temps_debut'] = time()
+def actualiser_chronometre(nom, label_chronometre):
+    if chronometres[nom]['temps_debut'] is not None:
+        temps_actuel = time()
+        temps_passe = temps_actuel - chronometres[nom]['temps_debut']
+        temps_total = chronometres[nom]['temps_total'] + temps_passe
+        heures, secondes = divmod(int(temps_total), 3600)
+        minutes, secondes = divmod(secondes, 60)
+        label_chronometre.config(text=f"Temps écoulé : {heures:02d}:{minutes:02d}:{secondes:02d}")
+        fenetre_detail.after(1000, actualiser_chronometre, nom, label_chronometre)
 
-def arreter_chronometre(nom):
+def demarrer_chronometre(nom, bouton_demarrer, bouton_arreter, label_chronometre):
+    if nom in chronometres and chronometres[nom]['temps_debut'] is None:
+        chronometres[nom]['temps_debut'] = time()
+        bouton_demarrer.config(state=DISABLED)
+        bouton_arreter.config(state=NORMAL)
+        actualiser_chronometre(nom, label_chronometre)
+
+def arreter_chronometre(nom, bouton_demarrer, bouton_arreter):
     if nom in chronometres and chronometres[nom]['temps_debut'] is not None:
-        temps_passe = time() - chronometres[nom]['temps_debut']
+        temps_actuel = time()
+        temps_passe = temps_actuel - chronometres[nom]['temps_debut']
         chronometres[nom]['temps_total'] += temps_passe
         chronometres[nom]['temps_debut'] = None
+        bouton_demarrer.config(state=NORMAL)
+        bouton_arreter.config(state=DISABLED)
 
 def afficher_details(liste):
     selection = liste.curselection()
@@ -44,19 +61,25 @@ def afficher_details(liste):
         nom = liste.get(selection[0])
         chrono = chronometres.get(nom)
         if chrono:
+            global fenetre_detail
             fenetre_detail = Toplevel()
             fenetre_detail.geometry('400x300')
             fenetre_detail.title(f"Détails de l'élément : {nom}")
 
             Label(fenetre_detail, text=f"Nom de l'élément : {nom}").pack()
-            label_chronometre = Label(fenetre_detail, text=f"Temps écoulé : {chronometres[nom]['temps_total']}")
+            label_chronometre = Label(fenetre_detail, text="Temps écoulé : 00:00:00")
             label_chronometre.pack()
 
-            bouton_demarrer = Button(fenetre_detail, text="Démarrer le chronomètre", command=lambda nom=nom: demarrer_chronometre(nom))
+            bouton_demarrer = Button(fenetre_detail, text="Démarrer le chronomètre", command=lambda nom=nom: demarrer_chronometre(nom, bouton_demarrer, bouton_arreter, label_chronometre))
             bouton_demarrer.pack()
 
-            bouton_arreter = Button(fenetre_detail, text="Arrêter le chronomètre", command=lambda nom=nom: arreter_chronometre(nom))
+            bouton_arreter = Button(fenetre_detail, text="Arrêter le chronomètre", state=DISABLED, command=lambda nom=nom: arreter_chronometre(nom, bouton_demarrer, bouton_arreter))
             bouton_arreter.pack()
+
+            bouton_retour = Button(fenetre_detail, text="Retour", command=fenetre_detail.quit)
+            bouton_retour.pack()
+            
+            actualiser_chronometre(nom, label_chronometre)
 
 def ma_fenetre():
     fenetre = Tk()
